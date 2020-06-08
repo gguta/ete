@@ -53,6 +53,8 @@ except ImportError:
 
 from collections import defaultdict, Counter
 
+from hashlib import md5
+
 import sqlite3
 import math
 import tarfile
@@ -224,6 +226,7 @@ class NCBITaxa(object):
         """
         if not taxid:
             return None
+        taxid = int(taxid)
         result = self.db.execute('SELECT track FROM species WHERE taxid=%s' %taxid)
         raw_track = result.fetchone()
         if not raw_track:
@@ -339,6 +342,11 @@ class NCBITaxa(object):
             except KeyError:
                 raise ValueError('%s not found!' %parent)
 
+        # checks if taxid is a deprecated one, and converts into the right one. 
+        _, conversion = self._translate_merged([taxid]) #try to find taxid in synonyms table
+        if conversion: 
+            taxid = conversion[taxid]
+            
         with open(self.dbfile+".traverse.pkl", "rb") as CACHED_TRAVERSE:
             prepostorder = pickle.load(CACHED_TRAVERSE)
         descendants = {}
@@ -736,10 +744,26 @@ def update_db(dbfile, targz_file=None):
         except ImportError:
             from urllib.request import urlretrieve
 
-        print('Downloading taxdump.tar.gz from NCBI FTP site (via HTTP)...', file=sys.stderr)
-        urlretrieve("http://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz", "taxdump.tar.gz")
-        print('Done. Parsing...', file=sys.stderr)
+        (md5_filename, _) = urlretrieve("https://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz.md5")
+        with open(md5_filename, "r") as md5_file:
+            md5_check = md5_file.readline().split()[0]
         targz_file = "taxdump.tar.gz"
+        do_download = False
+        
+        if os.path.exists("taxdump.tar.gz"):
+            local_md5 = md5(open("taxdump.tar.gz", "rb").read()).hexdigest()
+            if local_md5 != md5_check:
+                do_download = True
+                print('Updating taxdump.tar.gz from NCBI FTP site (via HTTP)...', file=sys.stderr)
+                urlretrieve("http://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz", targz_file)
+                print('Done. Parsing...', file=sys.stderr)
+            else:
+                print('Local taxdump.tar.gz seems up-to-date', file=sys.stderr)
+        else:
+            do_download = True
+            print('Downloading taxdump.tar.gz from NCBI FTP site (via HTTP)...', file=sys.stderr)
+            urlretrieve("http://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz", targz_file)
+            print('Done. Parsing...', file=sys.stderr)
 
     tar = tarfile.open(targz_file, 'r')
     t, synonyms = load_ncbi_tree_from_dump(tar)

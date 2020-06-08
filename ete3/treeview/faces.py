@@ -49,9 +49,11 @@ else:
     isfinite = lambda n: n and _isfinite(n)
 
 try:
-    from urllib2 import urlopen
-except ImportError:
+    # For Python 3.0 and later
     from urllib.request import urlopen
+except ImportError:
+    # Fall back to Python 2's urllib2
+    from urllib2 import urlopen
 
 import six
 from six.moves import map
@@ -1335,7 +1337,7 @@ class BarChartFace(Face):
     :param 200 width: width of the bar chart.
     :param 100 height: height of the bar chart
     :param None colors: a list of colors, one per bar value
-    :param None label: a list of labels, one per bar
+    :param None labels: a list of labels, one per bar
     :param 0 min_value: min value to set the scale of the chart.
     :param None max_value: max value to set the scale of the chart.
 
@@ -2072,7 +2074,7 @@ class SequencePlotFace(StaticItemFace):
             text = QGraphicsSimpleTextItem(self.ylabel)
             text.setFont(QFont("Arial", self.fsize-1))
             text.setParentItem(self.item)
-            text.rotate(-90)
+            text.setRotation(-90)
             tw = text.boundingRect().width()
             th = text.boundingRect().height()
             # Center text according to masterItem size
